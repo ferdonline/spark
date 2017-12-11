@@ -49,16 +49,28 @@ import org.apache.spark.unsafe.types.{ByteArray, UTF8String}
        SparkSQL
   """)
 case class Concat(children: Seq[Expression]) extends Expression with ImplicitCastInputTypes {
-
   override def inputTypes: Seq[AbstractDataType] = Seq.fill(children.size)(StringType)
-  override def dataType: DataType = StringType
+  override def dataType: DataType = {
+    if (children.forall(_.dataType == BinaryType)) {
+      BinaryType
+    }
+    else {
+      StringType
+    }
+  }
 
   override def nullable: Boolean = children.exists(_.nullable)
   override def foldable: Boolean = children.forall(_.foldable)
 
   override def eval(input: InternalRow): Any = {
     val inputs = children.map(_.eval(input).asInstanceOf[UTF8String])
-    UTF8String.concat(inputs : _*)
+    val concatd = UTF8String.concat(inputs : _*)
+    if (dataType == BinaryType) {
+      concatd.getBytes
+    }
+    else {
+      concatd
+    }
   }
 
   override protected def doGenCode(ctx: CodegenContext, ev: ExprCode): ExprCode = {
